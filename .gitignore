@@ -1,0 +1,13 @@
+# Simulator output
+build/
+*.vcd
+*.fst
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+
+# Verilator output
+obj_dir/
+
