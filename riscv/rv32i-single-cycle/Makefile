@@ -6,10 +6,12 @@ TB_DIR := tb
 BUILD_DIR := build
 
 .PHONY: test test-alu test-register-file test-immediate-generator \
-	test-branch-comparator test-instruction-decoder clean
+	test-branch-comparator test-instruction-decoder test-load-store-unit \
+	test-program-counter test-next-pc-logic test-rv32i-core clean
 
 test: test-alu test-register-file test-immediate-generator \
-	test-branch-comparator test-instruction-decoder
+	test-branch-comparator test-instruction-decoder test-load-store-unit \
+	test-program-counter test-next-pc-logic test-rv32i-core
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -42,6 +44,33 @@ test-instruction-decoder: | $(BUILD_DIR)
 		$(RTL_DIR)/instruction_decoder.sv $(TB_DIR)/instruction_decoder_tb.sv
 	$(VVP) $(BUILD_DIR)/instruction_decoder_tb
 
+test-load-store-unit: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s load_store_unit_tb \
+		-o $(BUILD_DIR)/load_store_unit_tb $(RTL_DIR)/rv32i_pkg.sv \
+		$(RTL_DIR)/load_store_unit.sv $(TB_DIR)/load_store_unit_tb.sv
+	$(VVP) $(BUILD_DIR)/load_store_unit_tb
+
+test-program-counter: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s program_counter_tb \
+		-o $(BUILD_DIR)/program_counter_tb $(RTL_DIR)/program_counter.sv \
+		$(TB_DIR)/program_counter_tb.sv
+	$(VVP) $(BUILD_DIR)/program_counter_tb
+
+test-next-pc-logic: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s next_pc_logic_tb \
+		-o $(BUILD_DIR)/next_pc_logic_tb $(RTL_DIR)/rv32i_pkg.sv \
+		$(RTL_DIR)/next_pc_logic.sv $(TB_DIR)/next_pc_logic_tb.sv
+	$(VVP) $(BUILD_DIR)/next_pc_logic_tb
+
+test-rv32i-core: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s rv32i_core_tb \
+		-o $(BUILD_DIR)/rv32i_core_tb $(RTL_DIR)/rv32i_pkg.sv \
+		$(RTL_DIR)/program_counter.sv $(RTL_DIR)/instruction_decoder.sv \
+		$(RTL_DIR)/immediate_generator.sv $(RTL_DIR)/register_file.sv \
+		$(RTL_DIR)/alu.sv $(RTL_DIR)/branch_comparator.sv \
+		$(RTL_DIR)/load_store_unit.sv $(RTL_DIR)/next_pc_logic.sv \
+		$(RTL_DIR)/rv32i_core.sv $(TB_DIR)/rv32i_core_tb.sv
+	$(VVP) $(BUILD_DIR)/rv32i_core_tb
+
 clean:
 	rm -r $(BUILD_DIR)
-
