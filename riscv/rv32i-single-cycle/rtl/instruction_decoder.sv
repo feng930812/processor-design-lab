@@ -12,6 +12,8 @@ module instruction_decoder(
   output logic                  memory_read_enable,
   output logic                  memory_write_enable,
   output logic                  load_unsigned,
+  output logic                  environment_call,
+  output logic                  breakpoint,
   output logic                  illegal_instruction
 );
 
@@ -44,6 +46,8 @@ module instruction_decoder(
     memory_read_enable    = 1'b0;
     memory_write_enable   = 1'b0;
     load_unsigned         = 1'b0;
+    environment_call      = 1'b0;
+    breakpoint            = 1'b0;
     illegal_instruction   = 1'b1;
 
     case (opcode)
@@ -316,6 +320,29 @@ module instruction_decoder(
           register_write_enable = 1'b1;
           illegal_instruction   = 1'b0;
         end
+      end
+
+      OPCODE_MISC_MEM: begin
+        // A single-cycle in-order core has no observable memory reordering,
+        // so the base FENCE operation completes as a legal no-op.
+        if ((funct3 == 3'b000) && (instruction[31:28] == 4'b0000)) begin
+          illegal_instruction = 1'b0;
+        end
+      end
+
+      OPCODE_SYSTEM: begin
+        case (instruction)
+          32'h0000_0073: begin
+            environment_call    = 1'b1;
+            illegal_instruction = 1'b0;
+          end
+          32'h0010_0073: begin
+            breakpoint          = 1'b1;
+            illegal_instruction = 1'b0;
+          end
+          default: begin
+          end
+        endcase
       end
 
       default: begin

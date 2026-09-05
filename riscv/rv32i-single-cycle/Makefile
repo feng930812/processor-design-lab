@@ -4,14 +4,17 @@ VVP ?= vvp
 RTL_DIR := rtl
 TB_DIR := tb
 BUILD_DIR := build
+PROGRAM_DIR := programs
 
 .PHONY: test test-alu test-register-file test-immediate-generator \
 	test-branch-comparator test-instruction-decoder test-load-store-unit \
-	test-program-counter test-next-pc-logic test-rv32i-core clean
+	test-program-counter test-next-pc-logic test-rv32i-core \
+	test-instruction-memory test-data-memory test-rv32i-system program clean
 
 test: test-alu test-register-file test-immediate-generator \
 	test-branch-comparator test-instruction-decoder test-load-store-unit \
-	test-program-counter test-next-pc-logic test-rv32i-core
+	test-program-counter test-next-pc-logic test-rv32i-core \
+	test-instruction-memory test-data-memory test-rv32i-system
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -71,6 +74,37 @@ test-rv32i-core: | $(BUILD_DIR)
 		$(RTL_DIR)/load_store_unit.sv $(RTL_DIR)/next_pc_logic.sv \
 		$(RTL_DIR)/rv32i_core.sv $(TB_DIR)/rv32i_core_tb.sv
 	$(VVP) $(BUILD_DIR)/rv32i_core_tb
+
+test-instruction-memory: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s instruction_memory_tb \
+		-o $(BUILD_DIR)/instruction_memory_tb \
+		$(RTL_DIR)/instruction_memory.sv $(TB_DIR)/instruction_memory_tb.sv
+	$(VVP) $(BUILD_DIR)/instruction_memory_tb
+
+test-data-memory: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s data_memory_tb -o $(BUILD_DIR)/data_memory_tb \
+		$(RTL_DIR)/data_memory.sv $(TB_DIR)/data_memory_tb.sv
+	$(VVP) $(BUILD_DIR)/data_memory_tb
+
+test-rv32i-system: | $(BUILD_DIR)
+	$(IVERILOG) -g2012 -s rv32i_system_tb \
+		-o $(BUILD_DIR)/rv32i_system_tb $(RTL_DIR)/rv32i_pkg.sv \
+		$(RTL_DIR)/program_counter.sv $(RTL_DIR)/instruction_decoder.sv \
+		$(RTL_DIR)/immediate_generator.sv $(RTL_DIR)/register_file.sv \
+		$(RTL_DIR)/alu.sv $(RTL_DIR)/branch_comparator.sv \
+		$(RTL_DIR)/load_store_unit.sv $(RTL_DIR)/next_pc_logic.sv \
+		$(RTL_DIR)/rv32i_core.sv $(RTL_DIR)/instruction_memory.sv \
+		$(RTL_DIR)/data_memory.sv $(RTL_DIR)/rv32i_system.sv \
+		$(TB_DIR)/rv32i_system_tb.sv
+	$(VVP) $(BUILD_DIR)/rv32i_system_tb
+
+program: | $(BUILD_DIR)
+	riscv64-unknown-elf-as -march=rv32i -mabi=ilp32 \
+		-o $(BUILD_DIR)/rv32i_integration.o $(PROGRAM_DIR)/rv32i_integration.S
+	riscv64-unknown-elf-ld -m elf32lriscv -Ttext=0 -e _start \
+		-o $(BUILD_DIR)/rv32i_integration.elf $(BUILD_DIR)/rv32i_integration.o
+	riscv64-unknown-elf-objcopy -O verilog --verilog-data-width=4 \
+		$(BUILD_DIR)/rv32i_integration.elf $(PROGRAM_DIR)/rv32i_integration.hex
 
 clean:
 	rm -r $(BUILD_DIR)

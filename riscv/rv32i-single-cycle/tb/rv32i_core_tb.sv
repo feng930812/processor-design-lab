@@ -14,6 +14,10 @@ module rv32i_core_tb;
   logic        data_read_enable;
   logic        data_write_enable;
   logic        data_address_misaligned;
+  logic        instruction_address_misaligned;
+  logic        illegal_instruction;
+  logic        environment_call;
+  logic        breakpoint;
   int unsigned test_count;
   int unsigned error_count;
 
@@ -28,7 +32,11 @@ module rv32i_core_tb;
     .data_byte_enable      (data_byte_enable),
     .data_read_enable      (data_read_enable),
     .data_write_enable     (data_write_enable),
-    .data_address_misaligned (data_address_misaligned)
+    .data_address_misaligned (data_address_misaligned),
+    .instruction_address_misaligned (instruction_address_misaligned),
+    .illegal_instruction   (illegal_instruction),
+    .environment_call      (environment_call),
+    .breakpoint            (breakpoint)
   );
 
   always #5 clk = ~clk;
@@ -46,6 +54,29 @@ module rv32i_core_tb;
     end else begin
       $display("PASS: %s, instruction_address=%h",
                test_name, instruction_address);
+    end
+  endtask
+
+  task automatic check_exceptions(
+    input logic expected_instruction_misaligned,
+    input logic expected_illegal,
+    input logic expected_environment_call,
+    input logic expected_breakpoint,
+    input string test_name
+  );
+    #1;
+    test_count++;
+
+    if ((instruction_address_misaligned !== expected_instruction_misaligned) ||
+        (illegal_instruction !== expected_illegal) ||
+        (environment_call !== expected_environment_call) ||
+        (breakpoint !== expected_breakpoint)) begin
+      error_count++;
+      $error("FAIL: %s, imisaligned=%b illegal=%b ecall=%b ebreak=%b",
+             test_name, instruction_address_misaligned, illegal_instruction,
+             environment_call, breakpoint);
+    end else begin
+      $display("PASS: %s", test_name);
     end
   endtask
 
@@ -322,6 +353,31 @@ module rv32i_core_tb;
                               "JALR clears bit zero of indirect target");
     check_register(5'd11, 32'h0000_0058,
                    "JALR writes PC plus 4 to link register");
+
+    @(negedge clk);
+    instruction_read_data = 32'h0330_000f; // FENCE rw, rw
+    check_exceptions(1'b0, 1'b0, 1'b0, 1'b0,
+                     "FENCE is a legal no-op");
+
+    @(negedge clk);
+    instruction_read_data = 32'h0000_0073; // ECALL
+    check_exceptions(1'b0, 1'b0, 1'b1, 1'b0,
+                     "ECALL requests an environment trap");
+
+    @(negedge clk);
+    instruction_read_data = 32'h0010_0073; // EBREAK
+    check_exceptions(1'b0, 1'b0, 1'b0, 1'b1,
+                     "EBREAK requests a breakpoint trap");
+
+    @(negedge clk);
+    instruction_read_data = 32'h0020_0073; // Unsupported SYSTEM encoding
+    check_exceptions(1'b0, 1'b1, 1'b0, 1'b0,
+                     "unsupported SYSTEM instruction is illegal");
+
+    @(negedge clk);
+    instruction_read_data = 32'h0020_006f; // JAL x0, +2
+    check_exceptions(1'b1, 1'b0, 1'b0, 1'b0,
+                     "misaligned jump target requests an exception");
 
     $display("Tests: %0d, Passed: %0d, Failed: %0d",
              test_count, test_count - error_count, error_count);

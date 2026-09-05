@@ -18,6 +18,8 @@ module instruction_decoder_tb;
   logic memory_read_enable;
   logic memory_write_enable;
   logic load_unsigned;
+  logic environment_call;
+  logic breakpoint;
   logic illegal_instruction;
 
   int tests_run;
@@ -37,6 +39,8 @@ module instruction_decoder_tb;
     .memory_read_enable,
     .memory_write_enable,
     .load_unsigned,
+    .environment_call,
+    .breakpoint,
     .illegal_instruction
   );
 
@@ -114,12 +118,14 @@ module instruction_decoder_tb;
     if ({alu_a_sel, alu_b_sel, alu_op, imm_type, branch_op,
          memory_size, writeback_sel, jump_type,
          register_write_enable, memory_read_enable,
-         memory_write_enable, load_unsigned, illegal_instruction} !==
+         memory_write_enable, load_unsigned, environment_call,
+         breakpoint, illegal_instruction} !==
         {expected_alu_a, expected_alu_b, expected_alu_op,
          expected_imm_type, expected_branch_op, expected_memory_size,
          expected_writeback_sel, expected_jump_type,
          expected_register_write, expected_memory_read,
-         expected_memory_write, expected_load_unsigned, 1'b0}) begin
+         expected_memory_write, expected_load_unsigned,
+         1'b0, 1'b0, 1'b0}) begin
       tests_failed++;
       $display("FAIL: %s", test_name);
       $display("  instruction = %08h", test_instruction);
@@ -151,9 +157,31 @@ module instruction_decoder_tb;
         register_write_enable !== 1'b0 ||
         memory_read_enable !== 1'b0 ||
         memory_write_enable !== 1'b0 ||
-        branch_op !== BR_NONE || jump_type !== JUMP_NONE) begin
+        branch_op !== BR_NONE || jump_type !== JUMP_NONE ||
+        environment_call !== 1'b0 || breakpoint !== 1'b0) begin
       tests_failed++;
       $display("FAIL: %s did not produce safe illegal controls", test_name);
+    end else begin
+      $display("PASS: %s", test_name);
+    end
+  endtask
+
+  task automatic check_environment_instruction(
+    input string       test_name,
+    input logic [31:0] test_instruction,
+    input logic        expected_environment_call,
+    input logic        expected_breakpoint
+  );
+    instruction = test_instruction;
+    #1;
+    tests_run++;
+
+    if ((environment_call !== expected_environment_call) ||
+        (breakpoint !== expected_breakpoint) ||
+        (illegal_instruction !== 1'b0) ||
+        register_write_enable || memory_read_enable || memory_write_enable) begin
+      tests_failed++;
+      $display("FAIL: %s", test_name);
     end else begin
       $display("PASS: %s", test_name);
     end
@@ -214,6 +242,15 @@ module instruction_decoder_tb;
     check_decode("JAL", make_j(21'h01000), ALU_A_PC, ALU_B_IMM, ALU_ADD, IMM_J, BR_NONE, MEM_WORD, WB_PC_PLUS_4, JUMP_DIRECT, 1, 0, 0, 0);
     check_decode("JALR", make_i(12'h010, 3'b000, OPCODE_JALR), ALU_A_RS1, ALU_B_IMM, ALU_ADD, IMM_I, BR_NONE, MEM_WORD, WB_PC_PLUS_4, JUMP_INDIRECT, 1, 0, 0, 0);
     check_illegal("illegal JALR funct3", make_i(12'h010, 3'b001, OPCODE_JALR));
+
+    check_decode("FENCE", 32'h0330_000f, ALU_A_RS1, ALU_B_RS2,
+                 ALU_ADD, IMM_NONE, BR_NONE, MEM_WORD, WB_ALU,
+                 JUMP_NONE, 0, 0, 0, 0);
+    check_illegal("illegal FENCE funct3", 32'h0000_100f);
+    check_illegal("unsupported FENCE fm", 32'h8000_000f);
+    check_environment_instruction("ECALL", 32'h0000_0073, 1'b1, 1'b0);
+    check_environment_instruction("EBREAK", 32'h0010_0073, 1'b0, 1'b1);
+    check_illegal("unsupported SYSTEM instruction", 32'h0020_0073);
     check_illegal("unknown opcode", 32'hffff_ffff);
 
     if (tests_failed == 0)

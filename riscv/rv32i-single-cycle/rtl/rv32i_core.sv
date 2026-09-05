@@ -12,7 +12,11 @@ module rv32i_core
   output logic [3:0]  data_byte_enable,
   output logic        data_read_enable,
   output logic        data_write_enable,
-  output logic        data_address_misaligned
+  output logic        data_address_misaligned,
+  output logic        instruction_address_misaligned,
+  output logic        illegal_instruction,
+  output logic        environment_call,
+  output logic        breakpoint
 );
 
   logic [31:0] pc;
@@ -46,8 +50,6 @@ module rv32i_core
   logic memory_read_enable;
   logic memory_write_enable;
   logic load_unsigned;
-  logic illegal_instruction;
-  logic instruction_address_misaligned;
   logic register_file_write_enable;
   logic branch_taken;
   logic lsu_misaligned;
@@ -126,6 +128,8 @@ module rv32i_core
     .memory_read_enable    (memory_read_enable),
     .memory_write_enable   (memory_write_enable),
     .load_unsigned         (load_unsigned),
+    .environment_call      (environment_call),
+    .breakpoint            (breakpoint),
     .illegal_instruction   (illegal_instruction)
   );
 

@@ -70,6 +70,8 @@ package rv32i_pkg;
   localparam logic [6:0] OPCODE_STORE  = 7'b0100011;
   localparam logic [6:0] OPCODE_JAL    = 7'b1101111;
   localparam logic [6:0] OPCODE_JALR   = 7'b1100111;
+  localparam logic [6:0] OPCODE_MISC_MEM = 7'b0001111;
+  localparam logic [6:0] OPCODE_SYSTEM   = 7'b1110011;
 
   localparam logic [9:0] R_FUNCT_ADD  = 10'b0000000_000;
   localparam logic [9:0] R_FUNCT_SUB  = 10'b0100000_000;
